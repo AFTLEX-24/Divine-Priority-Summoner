@@ -5,7 +5,8 @@
 A simple tool that creates custom launcher scripts to give your games or apps an instant CPU priority boost.
 
 ## 🛠️ How to Use
-1. Run `Generator.ahk`.
-2. Paste or browse for your game's location.
+1. Run `Master Generator Script`.
+2. Paste or browse for your `.exe`'s location.
 3. Choose your priority level.
-4. Click **Generate** to create your new launcher script!
+4. I don't know, maybe change the name?
+5. Click **Generate Launcher Script** to create your new launcher script!
