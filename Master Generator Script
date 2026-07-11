@@ -1,0 +1,158 @@
+#Requires AutoHotkey v2.0
+#SingleInstance Force
+
+; GUI SETUP
+
+myGui := Gui("+AlwaysOnTop", "Dynamic Priority Script Generator")
+myGui.SetFont("s10", "Segoe UI")
+
+myGui.Add("Text", "w400", "Select or Paste App File Location:")
+pathCombo := myGui.Add("ComboBox", "w360 vAppPath") 
+btnBrowse := myGui.Add("Button", "x+5 yp-2 w35 h26", "...")
+
+myGui.Add("Text", "xm y+15 w400", "Select Priority Level:")
+priorities := ["Real Time", "High", "Above Normal", "Normal", "Below Normal", "Low"]
+priorityDrop := myGui.Add("DropDownList", "w400 vPriorityChoose Choose1", priorities)
+
+myGui.Add("Text", "xm y+15 w400", "New Script Name (without .ahk):")
+nameEdit := myGui.Add("Edit", "w400 vScriptName")
+
+btnCreate := myGui.Add("Button", "xm y+25 w400 h35 Default", "Generate Launcher Script")
+
+btnBrowse.OnEvent("Click", SelectFile)
+priorityDrop.OnEvent("Change", UpdateScriptName)
+btnCreate.OnEvent("Click", GenerateScript)
+
+myGui.Show()
+
+; FUNCTIONS
+
+global currentExeName := ""
+
+SelectFile(*)
+{
+	global currentExeName
+	SelectedFile := FileSelect(3,, "Select the target executable", "Applications (*.exe)")
+	if SelectedFile != ""
+	{
+		pathCombo.Text := SelectedFile    
+		SplitPath(SelectedFile, &name)
+		currentExeName := StrReplace(name, ".exe", "")
+        UpdateScriptName()
+	}
+}
+
+UpdateScriptName(*)
+{
+	global currentExeName
+	if (currentExeName != "")
+	{
+		safePriorityName := StrReplace(priorityDrop.Text, " ", "")
+		nameEdit.Value := currentExeName "_" safePriorityName
+	}
+}
+
+GenerateScript(*)
+{
+	submission := myGui.Submit(false)
+	appPath := submission.AppPath
+	scriptName := submission.ScriptName
+	chosenPriority := submission.PriorityChoose
+
+	if (appPath == "" || scriptName == "")
+	{
+		MsgBox("Please fill in all fields before generating!", "Error", 48)
+		return
+	}
+
+	priorityMap := Map(
+		"Real Time", "R",
+		"High", "H",
+		"Above Normal", "A",
+		"Normal", "N",
+		"Below Normal", "B",
+		"Low", "L")
+		
+	pCode := priorityMap[chosenPriority]
+
+	if !RegExMatch(scriptName, "i)\.ahk$")
+		scriptName .= ".ahk"
+
+	SplitPath(appPath, &exeName)
+
+	scriptTemplate := "
+	(
+	#Requires AutoHotkey v2.0
+	#SingleInstance Force
+
+	if !A_IsAdmin
+	{
+		Run('*RunAs "' A_ScriptFullPath '"')
+		ExitApp
+	}
+
+	TargetLaunch := "[[APP_PATH]]"
+	TargetExe := "[[EXE_NAME]]"
+	PriorityCode := "[[PRIORITY_CODE]]"
+
+	Run(TargetLaunch)
+
+	if ProcessWait(TargetExe, 15)
+	{
+		Sleep(2000)
+	SetCustomPriority(TargetExe, PriorityCode)
+	}
+	else
+	{
+		MsgBox("Main process " TargetExe " not found!", "Error", 16)
+	}
+
+	SetCustomPriority(exeName, pCode)
+	{
+		try
+		{
+			ProcessSetPriority(pCode, exeName)
+		}
+        
+		mainPID := ProcessExist(exeName)
+		if !mainPID
+			return
+            
+		try
+		{
+			wmi := ComObject("WbemScripting.SWbemLocator").ConnectServer()
+			query := "Select * From Win32_Process Where ParentProcessId = " mainPID
+            
+			for process in wmi.ExecQuery(query)
+			{
+				try
+				{
+					ProcessSetPriority(pCode, process.ProcessId)
+				}
+			}
+		}
+	}
+	)"
+
+	scriptCode := StrReplace(scriptTemplate, "[[APP_PATH]]", appPath)
+	scriptCode := StrReplace(scriptCode, "[[EXE_NAME]]", exeName)
+	scriptCode := StrReplace(scriptCode, "[[PRIORITY_CODE]]", pCode)
+
+	if FileExist(scriptName)
+	{
+		result := MsgBox("File '" scriptName "' already exists. Overwrite it?", "File Exists", 4)
+		if result == "No"
+			return
+		FileDelete(scriptName)
+	}
+
+	try
+	{
+		FileAppend(scriptCode, scriptName, "UTF-8")
+		MsgBox("Script '" scriptName "' created successfully with " chosenPriority " priority!", "Success", 64)
+	}
+	catch Error as err
+	{
+		MsgBox("Failed to create script.`n`nError: " err.Message, "Error", 16)
+	}
+}
