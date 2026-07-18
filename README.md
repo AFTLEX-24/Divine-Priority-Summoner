@@ -1,7 +1,7 @@
 # Divine Priority Summoner (AHK v2)
 
-> "With the script,
-I summon PRIORITY LEVELS!"
+> With the script,
+I summon PRIORITY LEVELS!
 
 A simple tool that creates custom launcher scripts to give your games or apps an instant CPU priority boost.
 
